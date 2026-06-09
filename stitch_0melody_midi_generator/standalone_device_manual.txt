@@ -1,0 +1,255 @@
+23Gen Standalone Device Manual (Firmware-based)
+Version date: 2026-06-09
+Source of truth: current firmware code in src/core, src/Display, src/std23
+
+--------------------------------------------------------------------
+1) What this device is
+--------------------------------------------------------------------
+23Gen is a generative melodic sequencer firmware with:
+- Pattern generation based on key, scale, genre, tension, range, density, energy, silence.
+- Real-time performance controls (transpose, steps resize, reshape, add transforms, evolution).
+- Acid playback mode (accent/slide/tonic forcing behavior on the running pattern).
+- UI with pianoroll/performance screens and settings menus.
+- Internal or external MIDI clock sync modes.
+
+Important architecture note:
+- The sequencer timing-critical firing runs in ISR (Tick), while control/UI updates run in main loop.
+
+--------------------------------------------------------------------
+2) Hardware controls map
+--------------------------------------------------------------------
+Knobs and faders:
+- K1: Density
+- K2: Steps
+- K3: Energy
+- K4: Legato
+- K5: Genre
+- K6: Scale
+- K7: Tension
+- K8: Range
+- F1: Evolution amount
+- F2: Silence
+
+Encoder:
+- Turn: root key selection (or shortcuts depending on Shift/Clutch)
+- Short press: context dependent (menu click, internal clock play toggle on performance screens)
+- Long press (~2 s): open main menu
+
+Buttons:
+- B1: Reshape
+- B2: Panic
+- B3: Shift
+- B4: Generate
+- B5: Clutch (freeze/commit workflow)
+
+Switches:
+- SW1: Evolution mode (Gates+Notes / Gates / Notes)
+- SW2: Add mode (Variation / Repetition / Answer)
+- SW3: Transpose switch (0 / +12 / -12 semitones)
+- SW4: Acid mode (Off / On)
+
+--------------------------------------------------------------------
+3) Parameter behavior (what each control does)
+--------------------------------------------------------------------
+K1 Density
+- Controls rhythmic density (how many active steps/rest distribution), live-applied.
+
+K2 Steps
+- Base snapped values come from StepsFromPercent mapping.
+- With Shift held: continuous relative step-length edits (pickup style) for polyrhythmic lengths.
+- Real-time resize while running is deferred to loop boundary (to avoid phase jump).
+- In Acid mode, resize is anchor-based (deterministic reopen/close behavior).
+
+K3 Energy
+- Non-Acid: drives velocity pattern intensity.
+- Acid: interpreted as accent count (not continuous velocity reshaping of the melody content).
+
+K4 Legato
+- Non-Acid: gate shaping/legato behavior.
+- Acid: interpreted as slide count.
+
+K5 Genre
+- Selects generation style.
+- Applied on generation workflows (not continuous transpose-type remap of existing notes).
+
+K6 Scale
+- Selects musical scale used by generation/quantization.
+
+K7 Tension
+- Live structural control influencing melodic movement/range behavior.
+
+K8 Range
+- Non-Acid: melodic range control for generation/live structure.
+- Acid: interpreted as non-tonic count behavior (higher range keeps more original non-tonic notes).
+
+F1 Evolution
+- Evolution amount 0..1.
+- Active above threshold in sequencing path.
+- Mutation chance follows amount.
+- Mode set by SW1:
+  - Gates+Notes
+  - Gates only
+  - Notes only
+- Evolution is preview/commit aware in sequencer logic.
+
+F2 Silence
+- UI shows physical fader value.
+- Generator uses inverted value internally (1 - silence) where needed.
+
+SW1 Evolution mode
+- Position mapping in firmware:
+  - pos 0: GatesAndNotes
+  - pos 1: Gates
+  - pos 2: Notes
+
+SW2 Add mode
+- Real-time add transform on switch position change.
+- Deterministic transform set per seed (flip between positions does not random-stack).
+- Shift while changing SW2 bumps the add-set seed (new deterministic set of 3 outcomes).
+
+SW3 Transpose
+- Position mapping:
+  - center: 0 semitones
+  - pos 1: +12 semitones
+  - pos 2: -12 semitones
+
+SW4 Acid
+- Enables Acid playback transform:
+  - accents/slides/tonic forcing on the running pattern playback layer
+  - note content generation strategy remains controlled by generator + Acid playback remap
+
+--------------------------------------------------------------------
+4) Buttons and shortcuts
+--------------------------------------------------------------------
+B1 Reshape
+- Plain B1: rotate reshape gate profile.
+- Shift + B1: restore previous reshape (A/B toggle behavior).
+
+B2 Panic
+- Resets to base pattern state path and invalidates pending playback event state.
+
+B4 Generate
+- If stopped: immediate Generate.
+- If running: deferred Generate, quantized by setting (pattern end / 1/4 / 1/8 / 1/16).
+- Shift + B4: restore previous generated pattern (immediate restore path if available).
+
+B3 Shift
+- Modifier for shortcuts and alternative control semantics.
+- Supports Momentary/Latch behavior from settings.
+
+B5 Clutch (freeze/commit)
+- While active, performance control effects are frozen to snapshot behavior.
+- Releasing clutch commits queued edits.
+- Generate pressed during clutch toggles clutch-generate arming.
+- Supports Momentary/Latch behavior from settings.
+
+Shift + Encoder
+- Pattern offset rotation (time shift of pattern content) instead of root-key transpose.
+
+Shift + Clutch + Encoder
+- MIDI out channel quick-edit strip (1..16 displayed, stored as 0..15).
+
+--------------------------------------------------------------------
+5) Real-time behavior summary
+--------------------------------------------------------------------
+Root key (encoder turn)
+- Realtime transpose of current melody (preserves shape, re-quantized to key/scale).
+- Key-change mapping mode comes from settings:
+  - Circle of fifths
+  - Chromatic (Dominga)
+
+Steps (K2)
+- Realtime resize of current pattern.
+- While running, resize applies only at loop boundary for sync stability.
+
+Add (SW2)
+- Realtime deterministic transform on switch change.
+
+Evolution (F1 + SW1)
+- Applies per upcoming step in sequencer preview path, depending on mode and amount.
+
+Acid (SW4)
+- Reinterprets controls in playback:
+  - Energy -> accent count
+  - Legato -> slide count
+  - Range -> non-tonic retention count
+
+--------------------------------------------------------------------
+6) Menus and settings
+--------------------------------------------------------------------
+Open menu:
+- Long-press encoder (~2 seconds).
+
+Main menu entries:
+- Performance
+- Sync
+- Settings
+- MIDI
+- Update FW
+
+Sync submenu:
+- Internal
+- USB
+- IN
+- Exit
+
+Internal BPM screen:
+- Encoder turn: set BPM (40..240)
+- Encoder click: return to pianoroll
+
+Settings submenu values:
+- Key Change: Circle 5th / Dominga
+- Clutch: Momentary / Latch
+- Shift: Momentary / Latch
+- Generate quantization: Pattern end / 1/4 / 1/8 / 1/16
+- Back
+
+MIDI submenu values:
+- Out Ch: 1..16
+- Speed: x0.5 / x1 / x2 (changes clocks-per-step behavior)
+- Clock Thru: On/Off
+- Delay: signed ms compensation (range -50..+50 ms)
+- Back
+
+Firmware update submenu:
+- Yes -> request DFU entry
+- No -> return
+
+--------------------------------------------------------------------
+7) Sync and transport behavior
+--------------------------------------------------------------------
+Sync mode Internal:
+- Uses internal BPM and internal run state.
+- Encoder short press on performance screens toggles internal running.
+
+Sync mode USB or IN:
+- Uses incoming MIDI realtime clock.
+- MIDI transport switching is handled in main loop via SetMidiTransport.
+
+Clock output / timing:
+- Sequencer timing-critical events are managed in ISR.
+- Deferred operations (generate, steps resize) are boundary-quantized where defined.
+
+--------------------------------------------------------------------
+8) Typical usage workflow
+--------------------------------------------------------------------
+Quick start:
+1. Power on, wait for splash to end.
+2. On pianoroll, set key (encoder), scale (K6), genre (K5), steps (K2).
+3. Press B4 Generate.
+4. Shape groove live with K1/K7/K8/K3/K4 and SW2/SW1/F1.
+5. Toggle Acid with SW4 when needed.
+6. Use Clutch (B5) for controlled freeze/commit performance transitions.
+
+Live performance tips:
+- For phase-safe length changes while clocked, move K2 while running (firmware defers apply to boundary).
+- Use Shift+Encoder for pattern offset without changing key.
+- Use Shift+B4 to jump back to previous generation.
+- Use Shift+SW2 move to load a new deterministic Add transform set.
+
+--------------------------------------------------------------------
+9) Notes and limits
+--------------------------------------------------------------------
+- This document describes verified firmware behavior from source.
+- Electrical/analog behavior of panel jack labels (for example CLK/TENS/GATE/VEL/V-OCT panel legend) is hardware-specific and not fully documented here beyond firmware-visible behavior.
+- If UI graphics text differs from this file after future firmware updates, firmware source is authoritative.
