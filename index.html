@@ -92,6 +92,17 @@
       background: #111111;
     }
 
+    .pixel-input:disabled,
+    .pixel-button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .pixel-button:disabled:hover {
+      background: #000000;
+      color: #FFFFFF;
+    }
+
     h1, h2, h3 {
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -130,11 +141,12 @@
 <p class="text-xl mb-10 max-w-lg opacity-90">0melody is a generative sequencer that thinks like a musician. Skip the randomness and perform complex, beautiful melodies live with the turn of a knob.</p>
 <!-- CTA Form -->
 <div class="max-w-md" data-purpose="cta-form">
-<form class="flex flex-col sm:flex-row gap-4">
-<input class="pixel-input flex-grow p-4 text-lg" placeholder="ENTER_EMAIL_ADDR" required="" type="email">
-<button class="pixel-button px-8 py-4 text-lg whitespace-nowrap" type="submit">JOIN THE PERFORMANCE</button>
+<form class="flex flex-col sm:flex-row gap-4" aria-disabled="true">
+<input class="pixel-input flex-grow p-4 text-lg" placeholder="ENTER_EMAIL_ADDR" disabled="" type="email">
+<button class="pixel-button px-8 py-4 text-lg whitespace-nowrap" disabled="" type="button">JOIN THE PERFORMANCE</button>
 </form>
 <p class="text-xs mt-4 opacity-60 uppercase tracking-widest">Receive build logs &amp; early access invite codes.</p>
+<p class="text-xs mt-2 opacity-60 uppercase tracking-widest">Email signup is coming soon.</p>
 </div>
 </div>
 <!-- Hero Image -->
